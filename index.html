@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mini LMS — Login</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="container card">
+    <div class="header">
+      <div class="logo"><div class="box">LMS</div><div>
+        <div style="font-weight:800">Mini LMS — Login</div>
+        <div class="small muted">Demo with LocalStorage (no server)</div>
+      </div></div>
+      <div>
+        <span class="small muted">Built-in demo</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <h3>Sign in</h3>
+        <div class="small muted">Choose role then login with seeded user (or quick-register).</div>
+        <div style="margin-top:10px">
+          <label class="small">Role</label>
+          <select id="loginRole" class="input">
+            <option value="student">Student</option>
+            <option value="faculty">Faculty</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div style="margin-top:10px">
+          <label class="small">Email</label>
+          <input id="loginEmail" class="input" placeholder="you@example.com" />
+        </div>
+        <div style="margin-top:10px">
+          <label class="small">Password</label>
+          <input id="loginPass" class="input" type="password" placeholder="password" />
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button id="btnLogin" class="btn">Login</button>
+          <button id="btnRegister" class="btn ghost">Quick Register</button>
+          <button id="btnSeed" class="btn ghost">Seed Data</button>
+        </div>
+
+        <div style="margin-top:12px" class="card small muted">
+          <div><strong>Demo accounts</strong></div>
+          <div style="margin-top:6px">
+            Admin: <span class="kbd">admin@lms.test</span> / <span class="kbd">admin123</span><br/>
+            Faculty: <span class="kbd">faculty@lms.test</span> / <span class="kbd">faculty123</span><br/>
+            Student: <span class="kbd">student@lms.test</span> / <span class="kbd">student123</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <h3>About</h3>
+        <p class="small muted">This demo stores users, courses, assignments and submissions in your browser <code>localStorage</code>. Use the seed button to populate demo data. After login you will be redirected to <code>dashboard.html</code>.</p>
+        <div style="margin-top:12px">
+          <h4>Quick tips</h4>
+          <ul class="small muted">
+            <li>Students see only subjects they're enrolled in.</li>
+            <li>Faculty can create assignments in <code>teacher.html</code>.</li>
+            <li>Plagiarism tool is on <code>plagiarism.html</code> (demo Jaccard 5-gram).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">© Mini LMS — demo (Local browser data). Open <code>dashboard.html</code> after login.</div>
+  </div>
+
+<script>
+/* Simple DB helpers */
+const DB = {
+  get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d }},
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)) },
+  push(k,v){ const a=DB.get(k,[]); a.push(v); DB.set(k,a) }
+};
+
+function seedDemo(){
+  // avoid reseeding
+  if (DB.get('seeded')) return;
+  DB.set('users', [
+    {email:'admin@lms.test', pass:'admin123', role:'admin', name:'Platform Admin'},
+    {email:'faculty@lms.test', pass:'faculty123', role:'faculty', name:'Prof. Ada'},
+    {email:'faculty2@lms.test', pass:'faculty123', role:'faculty', name:'Prof. Turing'},
+    {email:'student@lms.test', pass:'student123', role:'student', name:'Alex Student'},
+    {email:'student2@lms.test', pass:'student123', role:'student', name:'Sam Learner'}
+  ]);
+  DB.set('subjects', [
+    {code:'AWS', title:'AWS Fundamentals', description:'Intro to AWS services', faculty:['faculty@lms.test'], classes:['CSE-A']},
+    {code:'SEC', title:'Cloud Security', description:'Security basics', faculty:['faculty2@lms.test'], classes:['CSE-A','CSE-B']},
+    {code:'ALG', title:'Algorithms', description:'Core algorithms', faculty:['faculty@lms.test'], classes:['CSE-B']}
+  ]);
+  DB.set('enrollments', [
+    {email:'student@lms.test', class:'CSE-A', subjects:['AWS','SEC']},
+    {email:'student2@lms.test', class:'CSE-B', subjects:['ALG','SEC']}
+  ]);
+  DB.set('assignments', [
+    {id:1, subject:'AWS', faculty:'faculty@lms.test', title:'EC2 Basics', desc:'Launch EC2', due:'2025-09-30'},
+    {id:2, subject:'SEC', faculty:'faculty2@lms.test', title:'IAM Policies', desc:'Create policies', due:'2025-10-05'}
+  ]);
+  DB.set('submissions', []);
+  DB.set('notifications', [{id:1, title:'Welcome', body:'Welcome to the demo LMS', unread:true, at:Date.now()}]);
+  DB.set('seq', {assg:3, sub:1});
+  DB.set('seeded', true);
+}
+
+/* UI */
+document.getElementById('btnSeed').addEventListener('click', ()=>{
+  seedDemo();
+  alert('Seeded demo data');
+});
+document.getElementById('btnRegister').addEventListener('click', ()=>{
+  const role = document.getElementById('loginRole').value;
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value || Math.random().toString(36).slice(2,8);
+  if (!email) { alert('Enter email'); return; }
+  const users = DB.get('users',[]);
+  if (users.find(u=>u.email===email)){ alert('Email exists'); return; }
+  users.push({email, pass, role, name:email.split('@')[0]});
+  DB.set('users', users);
+  alert(`Registered ${role}. Password: ${pass}`);
+});
+
+document.getElementById('btnLogin').addEventListener('click', ()=> {
+  const role = document.getElementById('loginRole').value;
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const users = DB.get('users',[]);
+  const u = users.find(x=>x.email===email && x.pass===pass && x.role===role);
+  if (!u) { alert('Invalid credentials or role. Try seeding demo data.'); return; }
+  // set session
+  DB.set('currentUser', u);
+  // redirect
+  location.href = 'dashboard.html';
+});
+
+/* Auto seed minimal data so user can login without clicking seed */
+seedDemo();
+</script>
+</body>
+</html>

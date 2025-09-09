@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Plagiarism Checker — Mini LMS</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    .pair{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+    .score{font-weight:800;padding:6px 8px;border-radius:8px;background:linear-gradient(180deg,var(--accent),var(--accent2));color:#001}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card header">
+      <div class="logo"><div class="box">LMS</div><div><div style="font-weight:800">Plagiarism Checker</div><div class="small muted">Jaccard 5-gram (demo)</div></div></div>
+      <div><a class="btn ghost" href="dashboard.html">← Dashboard</a></div>
+    </div>
+
+    <div class="card">
+      <h3>Check assignment submissions</h3>
+      <div class="small muted">Select a subject and an assignment, then run a local similarity check across text submissions.</div>
+
+      <div style="margin-top:12px">
+        <label class="small">Subject</label>
+        <select id="selSubject" class="input"></select>
+      </div>
+      <div style="margin-top:8px">
+        <label class="small">Assignment</label>
+        <select id="selAssg" class="input"></select>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button id="runCheck" class="btn">Run Check</button>
+        <button id="showPairs" class="btn ghost">Show all pairs</button>
+      </div>
+
+      <div id="results" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+<script>
+const DB = {
+  get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d }},
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)) }
+};
+const me = DB.get('currentUser'); if (!me){ alert('Not signed in'); location.href='index.html' }
+
+function populateSubjects(){
+  const sel = document.getElementById('selSubject'); sel.innerHTML='';
+  DB.get('subjects',[]).forEach(s=>{ const o=document.createElement('option'); o.value=s.code; o.textContent=`${s.code} — ${s.title}`; sel.appendChild(o); });
+}
+populateSubjects();
+function populateAssg(){
+  const subj = document.getElementById('selSubject').value;
+  const sel = document.getElementById('selAssg'); sel.innerHTML='';
+  DB.get('assignments',[]).filter(a=>a.subject===subj).forEach(a=>{ const o=document.createElement('option'); o.value=a.id; o.textContent=`${a.title} (by ${a.faculty})`; sel.appendChild(o); });
+}
+document.getElementById('selSubject').addEventListener('change', populateAssg);
+populateAssg();
+
+/* plagiarism utilities */
+function normalize(t){ return (t||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim() }
+function shingles(words,k=5){ const arr=[]; for(let i=0;i+k<=words.length;i++) arr.push(words.slice(i,i+k).join(' ')); return arr }
+function jaccard(a,b){ const A=new Set(a), B=new Set(b); const inter=[...A].filter(x=>B.has(x)).length; const uni=new Set([...a,...b]).size; return uni? inter/uni:0 }
+function similarityScore(textA,textB){ const wA = normalize(textA).split(' ').filter(Boolean); const wB = normalize(textB).split(' ').filter(Boolean); return jaccard(shingles(wA,5), shingles(wB,5)); }
+
+document.getElementById('runCheck').addEventListener('click', ()=>{
+  const assgId = Number(document.getElementById('selAssg').value);
+  if (!assgId) return alert('Select assignment');
+  const subs = DB.get('submissions',[]).filter(s=>s.assgId===assgId && s.text && s.text.length>50);
+  if (subs.length<2) return alert('Not enough text submissions to compare (min 2).');
+  const rows = [];
+  for (let i=0;i<subs.length;i++){
+    for (let j=i+1;j<subs.length;j++){
+      const a=subs[i], b=subs[j];
+      const sim = similarityScore(a.text, b.text);
+      if (sim>0) rows.push({score:sim, left:`${a.email} → ${a.fileName}`, right:`${b.email} → ${b.fileName}`});
+    }
+  }
+  rows.sort((x,y)=>y.score-x.score);
+  const out = document.getElementById('results'); out.innerHTML='';
+  if (!rows.length) return out.innerHTML='<div class="small muted">No similarities found.</div>';
+  rows.slice(0,20).forEach(r=>{
+    const div = document.createElement('div'); div.className='pair';
+    div.innerHTML = `<div style="flex:1"><div style="font-weight:800">${r.left} ↔ ${r.right}</div><div class="small muted">${(r.score*100).toFixed(1)}% similar</div></div><div class="score">${(r.score*100).toFixed(1)}%</div>`;
+    out.appendChild(div);
+  });
+});
+
+document.getElementById('showPairs').addEventListener('click', ()=> document.getElementById('runCheck').click());
+</script>
+</body>
+</html>

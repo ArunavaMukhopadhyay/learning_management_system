@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mini LMS — Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header card">
+      <div class="logo">
+        <div class="box">LMS</div>
+        <div>
+          <div style="font-weight:800">Mini LMS — Dashboard</div>
+          <div class="small muted" id="userRole"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <div id="whoami" class="small muted"></div>
+        <button id="logoutBtn" class="btn ghost">Logout</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <div class="col card">
+        <h3>Your Subjects</h3>
+        <div id="subjectsArea" style="margin-top:8px"></div>
+        <div style="margin-top:12px">
+          <a href="teacher.html" class="small">Teacher tools</a> • <a href="assignments.html" class="small">All assignments</a> • <a href="plagiarism.html" class="small">Plagiarism</a>
+        </div>
+      </div>
+
+      <div class="col card">
+        <h3>Quick Actions</h3>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+          <button id="goTeacher" class="btn">Create Assignment</button>
+          <button id="goAssign" class="btn ghost">Open Assignments</button>
+          <button id="goPlag" class="btn ghost">Plagiarism Tool</button>
+          <button id="goProfile" class="btn ghost">Profile</button>
+        </div>
+
+        <div style="margin-top:12px">
+          <h4>Notifications</h4>
+          <div id="notifArea" class="small muted"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <div class="col card">
+        <h3>Recent Assignments</h3>
+        <div id="recentAssign" style="margin-top:8px"></div>
+      </div>
+      <div class="col card">
+        <h3>Recent Activity</h3>
+        <div id="activityArea" style="margin-top:8px" class="small muted"></div>
+      </div>
+    </div>
+
+    <div class="footer">If you get stuck, clear <code>localStorage</code> in DevTools to reset demo data.</div>
+  </div>
+
+<script>
+const DB = {
+  get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d }},
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)) }
+};
+
+const me = DB.get('currentUser');
+if (!me) {
+  alert('No active user, redirecting to login.');
+  location.href = 'index.html';
+}
+document.getElementById('whoami').innerText = `${me.name || me.email} • ${me.role.toUpperCase()}`;
+document.getElementById('userRole').innerText = me.role === 'student' ? 'Student Dashboard' : me.role === 'faculty' ? 'Faculty Dashboard' : 'Admin Dashboard';
+
+function seedIfNeeded(){
+  if (!DB.get('seeded')) {
+    // minimal seed (same as index)
+    DB.set('users', DB.get('users',[]));
+    DB.set('subjects', DB.get('subjects',[]));
+    DB.set('enrollments', DB.get('enrollments',[]));
+    DB.set('assignments', DB.get('assignments',[]));
+    DB.set('submissions', DB.get('submissions',[]));
+    DB.set('notifications', DB.get('notifications',[]));
+    DB.set('seq', DB.get('seq',{assg:1,sub:1}));
+    DB.set('seeded', true);
+  }
+}
+seedIfNeeded();
+
+/* Prepare lists */
+const subjects = DB.get('subjects',[]);
+const assignments = DB.get('assignments',[]);
+const enrollments = DB.get('enrollments',[]);
+const notifs = DB.get('notifications',[]);
+
+/* Subjects visible to user */
+let visibleSubjects = [];
+if (me.role === 'student') {
+  const en = enrollments.find(e => e.email === me.email);
+  if (en && en.subjects) visibleSubjects = subjects.filter(s => en.subjects.includes(s.code));
+} else if (me.role === 'faculty') {
+  visibleSubjects = subjects.filter(s => (s.faculty||[]).includes(me.email));
+} else {
+  visibleSubjects = subjects;
+}
+
+/* render subjects */
+const subjectsArea = document.getElementById('subjectsArea');
+if (!visibleSubjects.length) {
+  subjectsArea.innerHTML = '<div class="small muted">No subjects found.</div>';
+} else {
+  subjectsArea.innerHTML = '';
+  visibleSubjects.forEach(s=>{
+    const el = document.createElement('div');
+    el.className = 'subject-card';
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:800">${s.code} — ${s.title}</div><div class="small muted">${(s.description||'')}</div></div><div style="display:flex;flex-direction:column;gap:6px"><a class="btn ghost" href="aws.html?subject=${encodeURIComponent(s.code)}">Open</a></div></div>`;
+    subjectsArea.appendChild(el);
+  });
+}
+
+/* recent assignments */
+const recentAssign = document.getElementById('recentAssign');
+const visibleAssigns = assignments.filter(a=> visibleSubjects.some(s=>s.code===a.subject)).sort((a,b)=> (a.due||'').localeCompare(b.due||''));
+if (!visibleAssigns.length) recentAssign.innerHTML = '<div class="small muted">No assignments</div>';
+else {
+  recentAssign.innerHTML = '';
+  visibleAssigns.slice(0,6).forEach(a=>{
+    const el = document.createElement('div'); el.className='list';
+    el.innerHTML = `<div class="item"><div style="flex:1"><div style="font-weight:700">${a.title}</div><div class="small muted">${a.subject} • Due: ${a.due||'—'}</div></div><div><a class="btn" href="assignments.html?subject=${encodeURIComponent(a.subject)}">Open</a></div></div>`;
+    recentAssign.appendChild(el);
+  });
+}
+
+/* notifications */
+const notifArea = document.getElementById('notifArea');
+if (!notifs.length) notifArea.innerText = 'No notifications';
+else {
+  notifArea.innerHTML = '';
+  notifs.slice(-5).reverse().forEach(n=>{
+    const d = new Date(n.at||Date.now());
+    const el = document.createElement('div'); el.className='small muted';
+    el.innerHTML = `<div style="font-weight:700">${n.title}</div><div>${n.body||''}</div><div class="small muted">${d.toLocaleString()}</div>`;
+    notifArea.appendChild(el);
+  });
+}
+
+/* activity area (simple) */
+const activityArea = document.getElementById('activityArea');
+activityArea.innerHTML = 'Recent activity will appear here.';
+
+/* actions */
+document.getElementById('goTeacher').addEventListener('click', ()=> location.href = 'teacher.html');
+document.getElementById('goAssign').addEventListener('click', ()=> location.href = 'assignments.html');
+document.getElementById('goPlag').addEventListener('click', ()=> location.href = 'plagiarism.html');
+document.getElementById('goProfile').addEventListener('click', ()=> location.href = 'profile.html');
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  localStorage.removeItem('currentUser');
+  location.href = 'index.html';
+});
+</script>
+</body>
+</html>

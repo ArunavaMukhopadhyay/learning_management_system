@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Assignments | LMS</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: #1e293b;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    header h1 {
+      font-size: 1.5rem;
+      color: #38bdf8;
+      margin: 0;
+    }
+    header a {
+      background: #38bdf8;
+      color: #0f172a;
+      padding: 0.5rem 1rem;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    header a:hover {
+      background: #0ea5e9;
+    }
+    main {
+      padding: 2rem;
+    }
+    h2 {
+      margin-bottom: 1rem;
+    }
+    .filter-box {
+      background: #1e293b;
+      padding: 1rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      display: flex;
+      gap: 1rem;
+    }
+    .filter-box input {
+      flex: 1;
+      padding: 0.6rem;
+      border-radius: 6px;
+      border: none;
+    }
+    .filter-box button {
+      padding: 0.6rem 1rem;
+      border: none;
+      border-radius: 6px;
+      background: linear-gradient(45deg, #38bdf8, #0ea5e9);
+      color: #fff;
+      cursor: pointer;
+      transition: opacity 0.3s;
+    }
+    .filter-box button:hover {
+      opacity: 0.9;
+    }
+    .assignments {
+      display: grid;
+      gap: 1rem;
+    }
+    .card {
+      background: #1e293b;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .card h3 {
+      margin-top: 0;
+      color: #fbbf24;
+    }
+    .card p {
+      font-size: 0.9rem;
+      margin: 0.2rem 0;
+    }
+    .card button {
+      margin-top: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #38bdf8;
+      color: #0f172a;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .card button:hover {
+      background: #0ea5e9;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LMS — Assignments</h1>
+    <a href="dashboard.html">← Dashboard</a>
+  </header>
+
+  <main>
+    <h2>View & Submit Assignments</h2>
+
+    <div class="filter-box">
+      <input type="text" id="filterInput" placeholder="Filter subject (code)">
+      <button onclick="filterAssignments()">Filter</button>
+      <button onclick="resetFilter()">All</button>
+    </div>
+
+    <div class="assignments" id="assignmentList">
+      <!-- Dynamic assignments will load here -->
+    </div>
+  </main>
+
+  <script>
+    // Fake DB utility for demo
+    const DB = {
+      get: (key, fallback) => JSON.parse(localStorage.getItem(key)) || fallback,
+      set: (key, value) => localStorage.setItem(key, JSON.stringify(value))
+    };
+
+    // Load assignments (example seed)
+    if (!DB.get("assignments", []).length) {
+      DB.set("assignments", [
+        { id: 1, subject: "AWS101", title: "Cloud Basics", desc: "Write a report on IAM & EC2", due: "2025-09-15" },
+        { id: 2, subject: "DB202", title: "SQL Project", desc: "Design a DB schema", due: "2025-09-20" },
+        { id: 3, subject: "AI303", title: "ML Assignment", desc: "Implement Logistic Regression", due: "2025-09-25" }
+      ]);
+    }
+
+    const assignmentList = document.getElementById("assignmentList");
+
+    function renderAssignments(list) {
+      assignmentList.innerHTML = "";
+      if (!list.length) {
+        assignmentList.innerHTML = "<p>No assignments found.</p>";
+        return;
+      }
+      list.forEach(a => {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <h3>${a.title} (${a.subject})</h3>
+          <p>${a.desc}</p>
+          <p><b>Due:</b> ${a.due}</p>
+          <button onclick="submitAssignment(${a.id})">Submit</button>
+          <button onclick="viewSubs(${a.id})">View Submissions</button>
+        `;
+        assignmentList.appendChild(div);
+      });
+    }
+
+    function filterAssignments() {
+      const val = document.getElementById("filterInput").value.trim().toUpperCase();
+      const list = DB.get("assignments", []).filter(a => a.subject.includes(val));
+      renderAssignments(list);
+    }
+
+    function resetFilter() {
+      document.getElementById("filterInput").value = "";
+      renderAssignments(DB.get("assignments", []));
+    }
+
+    function submitAssignment(id) {
+      const fileName = prompt("Enter file name to submit:");
+      if (!fileName) return;
+      const subs = DB.get("submissions", []);
+      subs.push({
+        assgId: id,
+        email: "student@lms.test",
+        fileName: fileName,
+        uploadedAt: new Date().toISOString()
+      });
+      DB.set("submissions", subs);
+      alert("Assignment submitted!");
+    }
+
+    function viewSubs(id) {
+      const subs = DB.get("submissions", []).filter(s => s.assgId === id);
+      if (!subs.length) return alert("No submissions yet");
+      let text = "Submissions:\n\n";
+      subs.forEach(s => {
+        text += `${s.email} — ${s.fileName} — ${new Date(s.uploadedAt).toLocaleString()}\n`;
+      });
+      alert(text);
+    }
+
+    // Initial load
+    renderAssignments(DB.get("assignments", []));
+  </script>
+</body>
+</html>

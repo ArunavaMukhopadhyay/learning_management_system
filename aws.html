@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Subject View — Mini LMS</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    /* small overrides for this page */
+    .two-col{display:grid;grid-template-columns:1fr 360px;gap:12px}
+    .faculty-card{display:flex;gap:12px;align-items:center;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);margin-bottom:8px}
+    .avatar{width:48px;height:48px;border-radius:8px;background:linear-gradient(180deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:800}
+    .assign-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);margin-bottom:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header card">
+      <div class="logo"><div class="box">LMS</div><div><div style="font-weight:800">Subject</div><div class="small muted">Faculty &assignments</div></div></div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <a href="dashboard.html" class="btn ghost">← Dashboard</a>
+        <div id="meBadge" class="small muted"></div>
+      </div>
+    </div>
+
+    <div class="card two-col">
+      <main>
+        <div id="subjectHero" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <div>
+            <div id="subjectCode" style="font-weight:800;font-size:18px"></div>
+            <div id="subjectTitle" style="font-size:20px;font-weight:900"></div>
+            <div id="subjectDesc" class="small muted"></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <a id="openAssignments" class="btn ghost" href="#">All assignments</a>
+            <a id="openTeacher" class="btn" href="#">Teacher tools</a>
+          </div>
+        </div>
+
+        <section style="margin-top:12px">
+          <h3>Faculty</h3>
+          <div id="facultyList"></div>
+        </section>
+
+        <section id="assignmentsPanel" style="margin-top:12px">
+          <h3>Assignments</h3>
+          <div id="assignList"></div>
+        </section>
+      </main>
+
+      <aside>
+        <div class="card">
+          <h4>Submit</h4>
+          <div class="small muted">Open an assignment to submit.</div>
+        </div>
+
+        <div style="margin-top:12px" class="card">
+          <h4>Recent submissions</h4>
+          <div id="recentSubs"></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="footer">Links: <a href="assignments.html">Assignments</a> • <a href="teacher.html">Teacher tools</a> • <a href="plagiarism.html">Plagiarism</a></div>
+  </div>
+
+<script>
+const DB = {
+  get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d }},
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)) },
+  push(k,v){ const a=DB.get(k,[]); a.push(v); DB.set(k,a) }
+};
+
+const me = DB.get('currentUser');
+if (!me){ alert('Not signed in'); location.href='index.html' }
+
+document.getElementById('meBadge').innerText = `${me.name || me.email} • ${me.role.toUpperCase()}`;
+function qp(k){ return new URLSearchParams(location.search).get(k) }
+
+const subjects = DB.get('subjects',[]);
+let subjectCode = qp('subject') || (subjects[0] && subjects[0].code);
+const subject = subjects.find(s=>s.code===subjectCode);
+if (!subject){ alert('Subject not found'); location.href='dashboard.html' }
+
+document.getElementById('subjectCode').innerText = subject.code;
+document.getElementById('subjectTitle').innerText = subject.title;
+document.getElementById('subjectDesc').innerText = subject.description || '';
+
+/* faculty for subject */
+const users = DB.get('users',[]);
+const facultyListEl = document.getElementById('facultyList');
+facultyListEl.innerHTML = '';
+(subject.faculty||[]).forEach(email=>{
+  const u = users.find(x=>x.email===email) || {email};
+  const div = document.createElement('div'); div.className='faculty-card';
+  const initials = (u.name||u.email).split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase();
+  div.innerHTML = `<div class="avatar">${initials}</div><div style="flex:1"><div style="font-weight:800">${u.name||u.email}</div><div class="small muted">${u.email}</div></div><div><button class="btn" data-email="${email}">View</button></div>`;
+  facultyListEl.appendChild(div);
+  div.querySelector('button')?.addEventListener('click', ()=> {
+    // show assignments by this faculty (subject)
+    const url = `assignments.html?subject=${encodeURIComponent(subject.code)}&faculty=${encodeURIComponent(email)}`;
+    location.href = url;
+  });
+});
+
+/* assignments list */
+function renderAssignments(filterFaculty){
+  const assignList = document.getElementById('assignList');
+  const assignments = DB.get('assignments',[]).filter(a=>a.subject===subject.code);
+  let filtered = assignments;
+  if (filterFaculty) filtered = assignments.filter(a=>a.faculty===filterFaculty);
+  if (!filtered.length) assignList.innerHTML = '<div class="small muted">No assignments</div>';
+  else {
+    assignList.innerHTML='';
+    filtered.forEach(a=>{
+      const el = document.createElement('div'); el.className='assign-item';
+      el.innerHTML = `<div><div style="font-weight:800">${a.title}</div><div class="small muted">${a.desc||''} • Due: ${a.due||'—'}</div></div>
+        <div style="display:flex;gap:8px;align-items:center"><a class="btn ghost" href="assignments.html?subject=${encodeURIComponent(a.subject)}&assg=${a.id}">Open</a></div>`;
+      assignList.appendChild(el);
+    });
+  }
+}
+renderAssignments();
+
+/* recent subs */
+function renderRecentSubs(){
+  const recent = DB.get('submissions',[]).filter(s=>{
+    const asg = DB.get('assignments',[]).find(a=>a.id===s.assgId);
+    return asg && asg.subject===subject.code;
+  }).slice(-6).reverse();
+  const recentSubs = document.getElementById('recentSubs');
+  recentSubs.innerHTML='';
+  if (!recent.length) recentSubs.innerHTML = '<div class="small muted">No recent submissions</div>';
+  else recent.forEach(s=>{
+    const d = new Date(s.uploadedAt);
+    recentSubs.innerHTML += `<div class="list"><div class="item"><div><div style="font-weight:700">${s.fileName}</div><div class="small muted">${s.email} • ${d.toLocaleString()}</div></div></div></div>`;
+  });
+}
+renderRecentSubs();
+
+document.getElementById('openAssignments').addEventListener('click', ()=> location.href = `assignments.html?subject=${encodeURIComponent(subject.code)}` );
+document.getElementById('openTeacher').addEventListener('click', ()=> location.href = `teacher.html?subject=${encodeURIComponent(subject.code)}` );
+
+</script>
+</body>
+</html>

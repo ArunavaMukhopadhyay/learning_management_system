@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Profile — Mini LMS</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header card">
+      <div class="logo"><div class="box">LMS</div><div><div style="font-weight:800">Profile</div><div class="small muted">Your account</div></div></div>
+      <div><a href="dashboard.html" class="btn ghost">← Dashboard</a></div>
+    </div>
+
+    <div class="card">
+      <h3>Account</h3>
+      <div id="profileArea"></div>
+    </div>
+  </div>
+
+<script>
+const DB = {
+  get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d }},
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)) }
+};
+let me = DB.get('currentUser'); if(!me){ alert('Not signed'); location.href='index.html' }
+const profileArea = document.getElementById('profileArea');
+function render(){
+  profileArea.innerHTML = `<div style="display:flex;gap:12px;align-items:center"><div style="width:64px;height:64px;border-radius:12px;background:linear-gradient(180deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:900">${(me.name||me.email).split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase()}</div><div style="flex:1"><div style="font-weight:800">${me.name}</div><div class="small muted">${me.email}</div><div class="small muted">Role: ${me.role}</div></div></div>
+  <div style="margin-top:12px"><label class="small">Display name</label><input id="inpName" class="input" value="${me.name || ''}"></div>
+  <div style="margin-top:8px"><label class="small">Password</label><input id="inpPass" class="input" value="${me.pass || ''}"></div>
+  <div style="margin-top:12px;display:flex;gap:8px"><button id="saveBtn" class="btn">Save</button><button id="logoutBtn" class="btn ghost">Logout</button></div>`;
+  document.getElementById('saveBtn').addEventListener('click', ()=>{
+    const name = document.getElementById('inpName').value.trim();
+    const pass = document.getElementById('inpPass').value;
+    me.name = name || me.name;
+    me.pass = pass;
+    DB.set('currentUser', me);
+    // update in users list
+    const users = DB.get('users',[]);
+    const uidx = users.findIndex(u=>u.email===me.email);
+    if (uidx>=0){ users[uidx]=me; DB.set('users', users) }
+    alert('Saved');
+    render();
+  });
+  document.getElementById('logoutBtn').addEventListener('click', ()=>{
+    localStorage.removeItem('currentUser'); location.href='index.html'
+  });
+}
+render();
+</script>
+</body>
+</html>

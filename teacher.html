@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Teacher Tools — Mini LMS</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header card">
+      <div class="logo"><div class="box">LMS</div><div><div style="font-weight:800">Teacher Tools</div><div class="small muted">Create and manage assignments</div></div></div>
+      <div style="display:flex;gap:8px;align-items:center"><a href="dashboard.html" class="btn ghost">← Dashboard</a><div id="teacherBadge" class="small muted"></div></div>
+    </div>
+
+    <div class="row card">
+      <div class="col">
+        <h3>Create Assignment</h3>
+        <div style="margin-top:8px">
+          <label class="small">Subject</label>
+          <select id="selSubject" class="input"></select>
+        </div>
+        <div style="margin-top:8px">
+          <label class="small">Title</label>
+          <input id="assgTitle" class="input" />
+        </div>
+        <div style="margin-top:8px">
+          <label class="small">Description</label>
+          <textarea id="assgDesc" class="input" rows="4"></textarea>
+        </div>
+        <div style="margin-top:8px">
+          <label class="small">Due Date</label>
+          <input id="assgDue" type="date" class="input" />
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button id="createAssg" class="btn">Create</button>
+          <button id="refreshBtn" class="btn ghost">Refresh</button>
+        </div>
+      </div>
+
+      <div class="col">
+        <h3>Your Assignments</h3>
+        <div id="myAssignList"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const DB = {
+  get(k,d=null){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d }},
+  set(k,v){ localStorage.setItem(k, JSON.stringify(v)) }, push(k,v){ const a=DB.get(k,[]); a.push(v); DB.set(k,a) }
+};
+const me = DB.get('currentUser');
+if (!me) { alert('Not signed in'); location.href='index.html' }
+document.getElementById('teacherBadge').innerText = `${me.name} • ${me.role}`;
+
+function populateSubjects(){
+  const sel = document.getElementById('selSubject');
+  sel.innerHTML = '';
+  DB.get('subjects',[]).forEach(s=>{
+    const o=document.createElement('option'); o.value=s.code; o.textContent=`${s.code} — ${s.title}`; sel.appendChild(o);
+  });
+}
+populateSubjects();
+
+function renderMyAssignments(){
+  const list = document.getElementById('myAssignList'); list.innerHTML='';
+  const assignments = DB.get('assignments',[]).filter(a=> a.faculty === me.email);
+  if (!assignments.length) { list.innerHTML = '<div class="small muted">No assignments</div>'; return; }
+  assignments.forEach(a=>{
+    const el = document.createElement('div'); el.className='list';
+    el.innerHTML = `<div class="item"><div style="flex:1"><div style="font-weight:800">${a.title} <span class="small muted">(${a.subject})</span></div><div class="small muted">${a.desc||''} • Due: ${a.due||'—'}</div></div><div style="display:flex;flex-direction:column;gap:6px"><button class="btn" data-edit="${a.id}">Edit</button><button class="btn ghost" data-del="${a.id}">Delete</button></div></div>`;
+    list.appendChild(el);
+    el.querySelector('[data-del]')?.addEventListener('click', ()=> deleteAssg(a.id));
+    el.querySelector('[data-edit]')?.addEventListener('click', ()=> editAssg(a.id));
+  });
+}
+renderMyAssignments();
+
+document.getElementById('createAssg').addEventListener('click', ()=>{
+  const subject = document.getElementById('selSubject').value;
+  const title = document.getElementById('assgTitle').value.trim();
+  const desc = document.getElementById('assgDesc').value.trim();
+  const due = document.getElementById('assgDue').value;
+  if (!subject || !title) return alert('Subject and title required');
+  const seq = DB.get('seq',{assg:1,sub:1});
+  const id = seq.assg++;
+  DB.set('seq', seq);
+  DB.push('assignments', {id, subject, faculty: me.email, title, desc, due});
+  alert('Assignment created');
+  renderMyAssignments();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', ()=> { populateSubjects(); renderMyAssignments(); });
+
+function deleteAssg(id){
+  if (!confirm('Delete assignment?')) return;
+  const a = DB.get('assignments',[]).filter(x=>x.id!==id);
+  DB.set('assignments', a);
+  renderMyAssignments();
+}
+
+function editAssg(id){
+  const assignments = DB.get('assignments',[]);
+  const a = assignments.find(x=>x.id===id);
+  if (!a) return;
+  const title = prompt('Title', a.title); if (title===null) return;
+  const desc = prompt('Description', a.desc||''); if (desc===null) return;
+  a.title = title; a.desc = desc;
+  DB.set('assignments', assignments);
+  renderMyAssignments();
+}
+</script>
+</body>
+</html>
